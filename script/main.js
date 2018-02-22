@@ -1,7 +1,7 @@
 const { h, render, Component } = preact
 
 const PER_ROW = 6
-const MAX_ROWS = 6
+const MAX_ROWS = 4
 
 /* UTILITY FUNCTIONS */
 
@@ -12,6 +12,10 @@ const range = (count) => {
 const randomElement = (items) => {
     const randomIndex = Math.floor(Math.random() * items.length)
     return items[randomIndex]
+}
+
+const toHex = (color) => {
+    return chroma.hsl(color.h, color.s / 100, color.l / 100).hex()
 }
 
 /* CLASSES */
@@ -221,33 +225,68 @@ class Heart extends Component {
 }
 
 class Palette extends Component {
-    hex(color) {
-        return chroma.hsl(color.h, color.s / 100, color.l / 100).hex()
-    }
-
-    render({ baseColor, tileMod, tileColor, spriteMod, spriteColor, update }) {
+    render({ baseColor, tileMod, tileColor, spriteMod, spriteColor, update, isSelected }) {
         return h('button',
             {
-                class: 'palette',
-                style: { backgroundColor: this.hex(baseColor) },
+                class: 'palette' + (isSelected ? ' selected' : ''),
+                style: { backgroundColor: toHex(baseColor) },
                 onclick: () => update(baseColor, tileMod, spriteMod)
             },
-            [
-                h(Heart, { type: 'filled', color: this.hex(tileColor) }),
-                h(Heart, { type: 'empty', color: this.hex(tileColor) }),
-                h(Heart, { type: 'empty', color: this.hex(spriteColor) }),
-                h(Heart, { type: 'filled', color: this.hex(spriteColor) })
-            ]
+            h('div', { class: 'palette-inner' }, [
+                h('div', { class: 'heart-row' }, [
+                    h(Heart, { type: 'filled', color: toHex(tileColor) }),
+                    h(Heart, { type: 'empty', color: toHex(tileColor) })
+                ]),
+                h('div', { class: 'heart-row' }, [
+                    h(Heart, { type: 'empty', color: toHex(spriteColor) }),
+                    h(Heart, { type: 'filled', color: toHex(spriteColor) })
+                ])
+            ])
         )
     }
 }
 
 class PaletteLine extends Component {
-    render({ palettes, update }) {
-        const children = palettes.map((palette, key) =>
-            h(Palette, { key, update, ...palette })
+    render({ palettes, update, selectedCol, rowKey, isFading }) {
+        const children = palettes.map((palette, colKey) =>
+            h(Palette,
+                {
+                    key: rowKey + '-' + colKey,
+                    update: (baseColor, tileMod, spriteMod) => update(baseColor, tileMod, spriteMod, rowKey, colKey),
+                    isSelected: selectedCol === colKey,
+                    ...palette
+                }
+            )
         )
-        return h('div', { class: 'palette-line' }, children)
+        return h('div', { class: 'palette-line' + (isFading ? ' fading' : '') }, children)
+    }
+}
+
+class ColorCodes extends Component {
+    select(e) {
+        const target = e.target
+        const value = target.value
+
+        target.setSelectionRange(0, value.length)
+
+        try {
+            document.execCommand('copy')
+        }
+        catch (e) { }
+    }
+
+    render({ baseColor, tileColor, spriteColor }) {
+        const baseHex = toHex(baseColor)
+        const tileHex = toHex(tileColor)
+        const spriteHex = toHex(spriteColor)
+
+        return h('div', { class: 'color-codes' },
+            [
+                h('input', { type: 'text', onclick: this.select, value: baseHex, style: { backgroundColor: baseHex } }),
+                h('input', { type: 'text', onclick: this.select, value: tileHex, style: { backgroundColor: tileHex } }),
+                h('input', { type: 'text', onclick: this.select, value: spriteHex, style: { backgroundColor: spriteHex } })
+            ]
+        )
     }
 }
 
@@ -256,7 +295,9 @@ class PaletteList extends Component {
         super(props)
 
         this.state = {
-            history: []
+            history: [],
+            selectedRow: null,
+            selectedCol: null
         }
 
         this.breeder = new PaletteBreeder()
@@ -284,19 +325,47 @@ class PaletteList extends Component {
         })
 
         let history = this.state.history.concat([palettes])
-        history = history.slice(Math.max(0, history.length - MAX_ROWS))
+        //history = history.slice(Math.max(0, history.length - MAX_ROWS))
 
         this.setState({ history })
 
     }
 
-    update(baseColor, tileMod, spriteMod) {
+    update(baseColor, tileMod, spriteMod, rowId, colId) {
         this.breeder.favor(baseColor, tileMod, spriteMod)
         this.generatePalettes()
+        this.setState({ selectedRow: rowId, selectedCol: colId })
     }
 
-    render(props, state) {
-        const children = state.history.map((palettes, key) => h(PaletteLine, { key, palettes, update: this.update }))
+    render(props, { history, selectedRow, selectedCol }) {
+        let children = []
+
+        children.push(h('h1', {}, 'palettsy'))
+        children.push(h('h2', {}, 'a palette generator for ', h('a', { href: 'http://ledoux.io/bitsy/editor.html' }, 'bitsy')))
+
+        const paletteLines = history.map((palettes, key) => h(PaletteLine,
+            {
+                key,
+                rowKey: key,
+                palettes,
+                update: this.update,
+                selectedCol: selectedRow === key ? selectedCol : null,
+                isFading: key < history.length - MAX_ROWS
+            }
+        )).slice(Math.max(0, history.length - MAX_ROWS - 1))
+        children = children.concat(paletteLines)
+
+        if (selectedRow != null && selectedCol != null) {
+            const currentPalette = history[selectedRow][selectedCol]
+            const { baseColor, tileColor, spriteColor } = currentPalette
+            const colorCodes = h(ColorCodes, { baseColor, tileColor, spriteColor })
+            children.push(colorCodes)
+        }
+
+        children.push(h('h3', {}, [
+            'by ', h('a', { href: 'https://zenzoa.com' }, 'sarah gould'), ' - source on ', h('a', { href: 'https://github.com/sarahgould/palettsy' }, 'github')
+        ]))
+
         return h('div', { class: 'palette-list' }, children)
     }
 }
@@ -307,6 +376,6 @@ window.onload = () => {
 
     render(
         h(PaletteList)
-    , document.body)
+    , document.getElementsByTagName('main')[0])
 
 }
