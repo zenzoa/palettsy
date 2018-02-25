@@ -46,21 +46,27 @@ class StatTable {
         return newItem
     }
 
+    reduceFavor() {
+        this.table = this.table.map(({ item, value }) => ({ item, value: Math.max(1, Math.floor(value / 2)) }))
+    }
+
     favorItem(favoredItem, amount) {
         this.table = this.table.map(({ item, value }) => ({ item, value: item === favoredItem ? value + amount : value }))
     }
 
-    favor(item, rate = 2, spread = 10) {
-        this.favorItem(item, spread)
+    favor(item, rate = 10, spread = 10) {
+        this.reduceFavor()
+
+        this.favorItem(item, rate * spread)
 
         const prevItems = range(spread).map(n => {
             const nearbyItem = this.nearby(item, -(n + 1))
-            this.favorItem(nearbyItem, (rate * spread) - n)
+            this.favorItem(nearbyItem, rate * (spread - n))
         })
 
         const nextItems = range(spread).map(n => {
             const nearbyItem = this.nearby(item, n + 1)
-            this.favorItem(nearbyItem, (rate * spread) - n)
+            this.favorItem(nearbyItem, rate * (spread - n))
         })
     }
 }
@@ -325,7 +331,6 @@ class PaletteList extends Component {
         })
 
         let history = this.state.history.concat([palettes])
-        //history = history.slice(Math.max(0, history.length - MAX_ROWS))
 
         this.setState({ history })
 
