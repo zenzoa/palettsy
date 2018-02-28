@@ -231,7 +231,8 @@ class Heart extends Component {
 }
 
 class Palette extends Component {
-    render({ baseColor, tileMod, tileColor, spriteMod, spriteColor, update, isSelected }) {
+    render({ palette, update, isSelected }) {
+        const { baseColor, tileMod, tileColor, spriteMod, spriteColor } = palette
         return h('button',
             {
                 class: 'palette' + (isSelected ? ' selected' : ''),
@@ -260,7 +261,7 @@ class PaletteLine extends Component {
                     key: rowKey + '-' + colKey,
                     update: (baseColor, tileMod, spriteMod) => update(baseColor, tileMod, spriteMod, rowKey, colKey),
                     isSelected: selectedCol === colKey,
-                    ...palette
+                    palette
                 }
             )
         )
